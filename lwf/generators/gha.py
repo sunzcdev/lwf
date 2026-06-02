@@ -12,6 +12,11 @@ def _render_step(step):
 
     lines = [f'      - name: {sid} · {cap}/{using}']
 
+    # 带 id 的步骤可以被后续步骤引用其 outputs
+    deps = step.get('depends', [])
+    if deps or sid in ('detect', 'collect', 'digest'):
+        lines.append(f'        id: {sid}')
+
     # Inject env vars from step config
     env_lines = []
     for k, v in cfg.get('env', {}).items():
@@ -21,7 +26,14 @@ def _render_step(step):
         lines.append('        env:')
         lines.extend(env_lines)
 
-    if cap == 'collect' and using == 'http':
+    # ── detect / script ──
+    if cap == 'detect' and using == 'script':
+        script = cfg.get('file', '')
+        lines.append('        run: |')
+        lines.append(f'          bash {script}')
+
+    # ── collect/http ──
+    elif cap == 'collect' and using == 'http':
         url = cfg.get('url', '')
         method = cfg.get('method', 'GET')
         lines.append('        run: |')
@@ -29,13 +41,17 @@ def _render_step(step):
         lines.append(f'          curl -sL -o "${{{{ github.workspace }}}}/data/{sid}.json" \\')
         lines.append(f'            -X {method} "{url}"')
 
-    elif (cap in ('collect', 'process') and using == 'script') or (cap == 'process' and using == 'script'):
+    # ── collect/script ──
+    elif cap == 'collect' and using == 'script':
         script = cfg.get('file', '')
         args = cfg.get('args', '')
+        ext = script.split('.')[-1] if '.' in script else ''
+        runner = 'bash' if ext == 'sh' else 'python3'
         lines.append('        run: |')
-        lines.append(f'          pip install -r requirements.txt 2>/dev/null || true')
-        lines.append(f'          python3 {script} {args}')
+        lines.append('          pip install -r requirements.txt 2>/dev/null || true')
+        lines.append(f'          {runner} {script} {args}')
 
+    # ── process/llm ──
     elif cap == 'process' and using == 'llm':
         prompt = cfg.get('prompt', '')
         model = cfg.get('model', 'qwen2.5-32b')
@@ -51,15 +67,16 @@ def _render_step(step):
         lines.append('            -H "Authorization: Bearer ${{ secrets.LLM_KEY }}" \\')
         lines.append(f'            -d "$(jq -n --arg p "$(cat /tmp/prompt.txt)" \'{{model:"{model}",messages:[{{role:"user",content:$p}}]}}\')"')
 
+    # ── store/git ──
     elif cap == 'store' and using == 'git':
         msg = cfg.get('commit_message', 'lwf update')
-        repo = cfg.get('repo', '${{ secrets.BRIDGE_REPO || github.repository }}')
         lines.append('        run: |')
-        lines.append(f'          git config user.name "lwf-bot"')
-        lines.append(f'          git config user.email "lwf-bot@users.noreply.github.com"')
+        lines.append('          git config user.name "lwf-bot"')
+        lines.append('          git config user.email "lwf-bot@users.noreply.github.com"')
         lines.append('          git add -A')
         lines.append(f'          git diff --cached --quiet || (git commit -m "{msg}" && git push)')
 
+    # ── notify/email ──
     elif cap == 'notify' and using == 'email':
         to = cfg.get('to', '')
         subject = cfg.get('subject', 'LWF 通知')
@@ -75,6 +92,17 @@ def _render_step(step):
         lines.append('    s.login(os.environ.get("EMAIL_FROM",""), os.environ.get("EMAIL_PASS",""))')
         lines.append(f'    s.sendmail(os.environ.get("EMAIL_FROM",""), ["{to}"], msg.as_string())')
         lines.append('          """')
+
+    # ── process/script ──
+    elif cap == 'process' and using == 'script':
+        script = cfg.get('file', '')
+        args = cfg.get('args', '')
+        ext = script.split('.')[-1] if '.' in script else ''
+        runner = 'bash' if ext == 'sh' else 'python3'
+        lines.append('        run: |')
+        lines.append('          pip install -r requirements.txt 2>/dev/null || true')
+        lines.append(f'          {runner} {script} {args}')
+
     else:
         lines.append(f'        run: echo "LWF step: {sid} ({cap}/{using})"')
 
@@ -88,10 +116,20 @@ def generate(name, gha_steps, trigger_schedule=None):
         'on:',
     ]
     if trigger_schedule:
-        lines.append(f'  schedule:')
-        lines.append(f'    - cron: \'{trigger_schedule}\'')
+        lines.append('  schedule:')
+        lines.append(f"    - cron: '{trigger_schedule}'")
+    lines.append('  workflow_dispatch:')
+    # Check if any step needs workflow_dispatch inputs (like mode)
+    has_detect = any(s.get('id') == 'detect' for s in gha_steps)
+    if has_detect:
+        lines.append('    inputs:')
+        lines.append('      mode:')
+        lines.append("        description: '模式: daily/weekly/monthly'")
+        lines.append('        required: true')
+        lines.append("        default: 'weekly'")
+        lines.append('        type: choice')
+        lines.append('        options: [daily, weekly, monthly]')
     lines.extend([
-        '  workflow_dispatch:',
         '', 'jobs:', '  run:',
         '    runs-on: ubuntu-latest',
         '    timeout-minutes: 15', '',
@@ -102,7 +140,7 @@ def generate(name, gha_steps, trigger_schedule=None):
         '          token: ${{ secrets.BRIDGE_TOKEN || github.token }}', '',
         '      - uses: actions/setup-python@v5',
         '        with:',
-        '          python-version: \'3.11\'', '',
+        "          python-version: '3.11'", '',
         '      - run: mkdir -p data', '',
     ])
     for s in ordered:

@@ -31,7 +31,7 @@ WORKFLOW_SCHEMA = {
                     "runner": {"type": "string", "enum": ["gha", "local"]},
                     "capability": {
                         "type": "string",
-                        "enum": ["collect", "process", "store", "notify", "consume"]
+                        "enum": ["collect", "process", "store", "notify", "consume", "detect"]
                     },
                     "using": {"type": "string"},
                     "config": {"type": "object"},
