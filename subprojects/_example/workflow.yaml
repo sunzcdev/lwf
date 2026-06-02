@@ -1,0 +1,44 @@
+name: daily-weather
+trigger:
+  schedule: "0 23 * * *"
+bridge:
+  repo: sunzcdev/data-bridge
+  path: daily-weather/
+
+steps:
+  - id: weather
+    runner: gha
+    capability: collect
+    using: http
+    config:
+      url: "https://api.openweathermap.org/data/2.5/weather?q=Zhengzhou&appid={{ secrets.OWM_KEY }}&units=metric&lang=zh_cn"
+      method: GET
+
+  - id: greet
+    runner: gha
+    depends: [weather]
+    capability: process
+    using: llm
+    config:
+      model: "Qwen/Qwen2.5-32B-Instruct"
+      api_url: "https://api.siliconflow.cn/v1/chat/completions"
+      prompt: "你是早安助手。根据天气数据写一句温暖早安寄语（20字内）。"
+
+  - id: store
+    runner: gha
+    depends: [greet]
+    capability: store
+    using: git
+    config:
+      commit_message: "daily-weather update"
+
+  - id: notify
+    runner: gha
+    optional: true
+    capability: notify
+    using: email
+    config:
+      smtp_host: "smtp.qq.com"
+      smtp_port: 465
+      to: "sunzcdev@gmail.com"
+      subject: "早安 🌤"

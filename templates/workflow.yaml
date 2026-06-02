@@ -1,0 +1,64 @@
+# LWF 工作流模板 — 拷贝到 subprojects/你的项目/ 后填空
+# 框架定义能力骨架，你决定每步做什么
+name: my-workflow
+
+trigger:
+  schedule: "0 23 * * *"    # UTC，你改
+
+# 数据桥（可选，用不到可删）
+bridge:
+  repo: your-org/data-bridge
+  path: my-workflow/
+
+steps:
+  # ── 采集 ──
+  # using: http / rss / github / file
+  - id: collect
+    runner: gha
+    capability: collect
+    using: http                  # ← 你改
+    config:
+      url: ""                    # ← 你填
+      method: GET
+
+  # ── 处理（可选） ──
+  # using: llm / script / filter
+  - id: process
+    runner: gha
+    depends: [collect]
+    capability: process
+    using: llm
+    config:
+      model: qwen2.5-32b
+      prompt: ""
+
+  # ── 存储（通用） ──
+  - id: store
+    runner: gha
+    depends: [process]
+    capability: store
+    using: git
+    config:
+      commit_message: "update"
+
+  # ── 通知（可选） ──
+  - id: notify
+    runner: gha
+    optional: true
+    capability: notify
+    using: email
+    config:
+      smtp_host: "smtp.qq.com"
+      to: ""
+      subject: "通知"
+
+  # ── 本地消费（可选） ──
+  - id: consume
+    runner: local
+    trigger: git_push
+    optional: true
+    capability: consume
+    using: obsidian
+    config:
+      vault_path: "~/notebook"
+      folder: "日记/"
