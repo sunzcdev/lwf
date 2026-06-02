@@ -1,29 +1,35 @@
-# ai-briefing AI 资讯简报
-# 采集 → LLM 精选 → 邮件推送
-# 原有采集逻辑不变，LWF 做编排 + 数据桥
-
+# LWF 工作流定义 — ai-briefing
+# 模式检测 → 采集 → LLM 精选 → Git 桥存储 → 邮件推送
 name: ai-briefing
 trigger:
-  schedule: "0 7 * * *"        # 北京时间 7:00 (GHA 用 UTC)
+  schedule: "0 7 * * *"        # 每天 UTC 7:00（北京时间 15:00）
 
 bridge:
   repo: sunzcdev/data-bridge
   path: ai-briefing/
 
 steps:
-  # ── 采集 ──
-  # 多源（GitHub / HN / Reddit / TopHub），复用 ai_briefing_collector.py
+  # ── 第一步：模式检测（daily/weekly/monthly） ──
+  - id: detect
+    runner: gha
+    capability: detect
+    using: script
+    config:
+      file: scripts/detect-mode.sh
+
+  # ── 第二步：采集 ──
   - id: collect
     runner: gha
+    depends: [detect]
     capability: collect
     using: script
     config:
       file: scripts/collect.py
+      args: ${{ steps.detect.outputs.mode }}
       env:
         GITHUB_TOKEN: "{{ secrets.GITHUB_TOKEN }}"
 
-  # ── 处理：LLM 精选 ──
-  # 用硅基流动 Qwen2.5-32B 从采集结果中挑出最优项目+热点
+  # ── 第三步：LLM 精选 ──
   - id: digest
     runner: gha
     depends: [collect]
@@ -32,10 +38,9 @@ steps:
     config:
       model: "Qwen/Qwen2.5-32B-Instruct"
       api_url: "https://api.siliconflow.cn/v1/chat/completions"
-      api_key: "{{ secrets.LLM_KEY }}"
       prompt: "你是 AI 领域资深编辑。从候选项目中挑出 7 个最值得关注的优质项目，从候选新闻中挑出 3 个最重要热点，每项用一句话中文点评。"
 
-  # ── 存储：推送到数据桥 ──
+  # ── 第四步：存入数据桥 ──
   - id: store
     runner: gha
     depends: [digest]
@@ -44,8 +49,7 @@ steps:
     config:
       commit_message: "ai-briefing update"
 
-  # ── 渲染 + 发信 ──
-  # 读取精选结果，生成 HTML，通过 QQ SMTP 发送
+  # ── 第五步：渲染发信 ──
   - id: send
     runner: gha
     depends: [digest]
