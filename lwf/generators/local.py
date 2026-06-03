@@ -14,26 +14,7 @@ def _render_task(step):
     lines = [f'def task_{sid}():']
     lines.append(f'    """{sid} · {cap}/{using}"""')
 
-    idle_check = (
-        "    if not data_exists():"
-        "        print(f'  [lwf] {sid}: idle — 无数据')"
-        "        return"
-    )
-
-    if cap == 'consume' and using == 'obsidian':
-        vault = cfg.get('vault_path', '~/notebook')
-        folder = cfg.get('folder', '')
-        data_file = cfg.get('data_file', '')
-        lines.append(f'    data_path = os.path.join(BRIDGE_DIR, "{data_file}")')
-        lines.append('    if os.path.exists(data_path) and os.path.getsize(data_path) > 0:')
-        lines.append(f'        vault = os.path.expanduser("{vault}")')
-        lines.append(f'        target = os.path.join(vault, "{folder}")')
-        lines.append('        os.makedirs(target, exist_ok=True)')
-        lines.append('        print(f"  [lwf] {sid}: 数据就绪 → {target}")')
-        lines.append('    else:')
-        lines.append('        print(f"  [lwf] {sid}: idle — 无新数据")')
-
-    elif cap == 'consume' and using == 'script':
+    if cap == 'consume' and using == 'script':
         script = cfg.get('file', '')
         data_file = cfg.get('data_file', '')
         if data_file:
@@ -46,30 +27,15 @@ def _render_task(step):
             lines.append('    else:')
             lines.append(f'        print(f"  [lwf] {sid}: idle — 无新数据")')
         else:
-            # 无 data_file 约束，直接执行
             lines.append(f'    rc = subprocess.run(["python3", "{script}"], cwd=WORK_DIR)')
             lines.append(f'    if rc.returncode != 0:')
             lines.append(f'        print(f"  ! {sid} 失败 ({{rc.returncode}})" )')
 
-    elif cap == 'consume' and using == 'rclone':
-        """rclone sync — 直写坚果云等云存储"""
-        remote = cfg.get('remote', '')
-        source = cfg.get('source', '')
-        target = cfg.get('target', '')
-        data_file = cfg.get('data_file', '')
-        if data_file:
-            lines.append(f'    data_path = os.path.join(BRIDGE_DIR, "{data_file}")')
-            lines.append('    if os.path.exists(data_path) and os.path.getsize(data_path) > 0:')
-            lines.append(f'        print(f"  [lwf] {sid}: rclone {source} → {remote}:{target}")')
-            lines.append(f'        rc = subprocess.run(["rclone", "copy", "{source}", "{remote}:{target}"])')
-            lines.append(f'        if rc.returncode != 0:')
-            lines.append(f'            print(f"  ! rclone 失败 ({{rc.returncode}})" )')
-            lines.append('    else:')
-            lines.append(f'        print(f"  [lwf] {sid}: idle — 无新数据")')
-        else:
-            lines.append(f'    rc = subprocess.run(["rclone", "copy", "{source}", "{remote}:{target}"])')
-            lines.append(f'    if rc.returncode != 0:')
-            lines.append(f'        print(f"  ! rclone 失败 ({{rc.returncode}})" )')
+    elif cap == 'notify' and using == 'hermes':
+        """Hermes 通知 — stdout 被 Hermes cron 捕获后送微信/邮箱"""
+        message = cfg.get('message', 'LWF 通知')
+        lines.append(f'    print("{message}")')
+        lines.append('    print("  ✓ notify: hermes 已捕获通知")')
 
     else:
         # 未知 capability：data_file 感知 idle

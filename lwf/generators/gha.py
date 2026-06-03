@@ -81,25 +81,8 @@ def _render_step(step):
         lines.append('          git add -A')
         lines.append(f'          git diff --cached --quiet || (git commit -m "{msg}" && git push)')
 
-    # ── notify/email ──
-    elif cap == 'notify' and using == 'email':
-        to = cfg.get('to', '')
-        subject = cfg.get('subject', 'LWF 通知')
-        lines.append('        run: |')
-        lines.append('          python3 -c """')
-        lines.append('import smtplib, os')
-        lines.append('from email.mime.text import MIMEText')
-        lines.append('msg = MIMEText("LWF 工作流通知")')
-        lines.append(f'msg["Subject"] = "{subject}"')
-        lines.append(f'msg["To"] = "{to}"')
-        lines.append('msg["From"] = os.environ.get("EMAIL_FROM", "")')
-        lines.append('with smtplib.SMTP_SSL(os.environ.get("SMTP_HOST","smtp.qq.com"), 465) as s:')
-        lines.append('    s.login(os.environ.get("EMAIL_FROM",""), os.environ.get("EMAIL_PASS",""))')
-        lines.append(f'    s.sendmail(os.environ.get("EMAIL_FROM",""), ["{to}"], msg.as_string())')
-        lines.append('          """')
-
-    # ── notify/rclone ──
-    elif cap == 'notify' and using == 'rclone':
+    # ── store/rclone ──
+    elif cap == 'store' and using == 'rclone':
         remote = cfg.get('remote', '')
         rtype = cfg.get('type', 'webdav')
         url = cfg.get('url', '')
@@ -121,7 +104,21 @@ def _render_step(step):
         lines.append('          which rclone >/dev/null 2>&1 || (curl -s https://rclone.org/install.sh | bash)')
         lines.append(f'          rclone copy "{source}" "{remote}:{target}" --progress')
         lines.append(f'          echo "  ✓ rclone: {source} → {remote}:{target}"')
-
+    elif cap == 'notify' and using == 'email':
+        to = cfg.get('to', '')
+        subject = cfg.get('subject', 'LWF 通知')
+        lines.append('        run: |')
+        lines.append('          python3 -c """')
+        lines.append('import smtplib, os')
+        lines.append('from email.mime.text import MIMEText')
+        lines.append('msg = MIMEText("LWF 工作流通知")')
+        lines.append(f'msg["Subject"] = "{subject}"')
+        lines.append(f'msg["To"] = "{to}"')
+        lines.append('msg["From"] = os.environ.get("EMAIL_FROM", "")')
+        lines.append('with smtplib.SMTP_SSL(os.environ.get("SMTP_HOST","smtp.qq.com"), 465) as s:')
+        lines.append('    s.login(os.environ.get("EMAIL_FROM",""), os.environ.get("EMAIL_PASS",""))')
+        lines.append(f'    s.sendmail(os.environ.get("EMAIL_FROM",""), ["{to}"], msg.as_string())')
+        lines.append('          """')
     # ── process/script ──
     elif cap == 'process' and using == 'script':
         script = cfg.get('file', '')
