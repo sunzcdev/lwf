@@ -41,7 +41,34 @@ def cmd_deploy(args):
         p.chmod(0o755)
         print(f"  💻 {p}")
 
+        # ── 写 email trigger 配置 ──
+        email_cfg = bridge.get('email', {})
+        triggers = email_cfg.get('triggers', [])
+        if triggers:
+            wd_dir = Path.home() / '.lwf' / 'watchdog.d'
+            wd_dir.mkdir(parents=True, exist_ok=True)
+            trigger_cfg = {
+                'runner': str(p),
+                'triggers': triggers,
+            }
+            wd_path = wd_dir / f'{name}.yaml'
+            import yaml
+            wd_path.write_text(yaml.dump(trigger_cfg, allow_unicode=True, default_flow_style=False))
+            print(f"  📧 {wd_path} ({len(triggers)} 个 trigger)")
+
     print(f"\n✅ 部署完成: {name}")
+
+
+def cmd_watchdog(args):
+    from .watchdog.email import EmailWatchdog
+
+    wd = EmailWatchdog(config_path=args.config)
+    if args.action == "once":
+        wd.poll_once()
+    elif args.action == "start":
+        wd.run_forever(interval=args.interval)
+
+    print("✅ 已完成")
 
 
 def main():
@@ -56,6 +83,12 @@ def main():
     d.add_argument('workflow', type=Path)
     d.add_argument('--out', '-o', type=Path, default=Path.cwd())
     d.set_defaults(func=cmd_deploy)
+
+    w = sub.add_parser('watchdog', help='启动本地邮箱看门狗')
+    w.add_argument('action', choices=['once', 'start'], help='once=单次轮询, start=持续运行')
+    w.add_argument('--config', default='~/.lwf/watchdog.yaml', help='看门狗配置文件路径')
+    w.add_argument('--interval', '-i', type=int, default=60, help='轮询间隔（秒）')
+    w.set_defaults(func=cmd_watchdog)
 
     args = p.parse_args()
     if not args.cmd:

@@ -1,0 +1,9 @@
+# ~/.lwf/watchdog.yaml
+# LWF 邮箱看门狗 — 全局 IMAP 配置
+# 注意：只放 IMAP 凭证，trigger 映射由 lwf deploy 自动生成到 watchdog.d/
+
+imap:
+  host: imap.qq.com
+  port: 993
+  user: "your_email@qq.com"
+  pass: "your-imap-authorization-code"

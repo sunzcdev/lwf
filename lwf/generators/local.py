@@ -4,7 +4,7 @@ from ..parser import topo_sort
 
 
 def _render_task(step):
-    """Render a single local task with idle/no-op support."""
+    """Render a single local task. Each step decides its own idle logic."""
     sid = step['id']
     cap = step['capability']
     using = step.get('using', '')
@@ -25,8 +25,12 @@ def _render_task(step):
             lines.append(f'        if rc.returncode != 0:')
             lines.append(f'            print(f"  ! {sid} 失败 ({{rc.returncode}})" )')
             lines.append('    else:')
-            lines.append(f'        print(f"  [lwf] {sid}: idle — 无新数据")')
+            if is_optional:
+                lines.append(f'        print(f"  [lwf] {sid}: optional — 无数据，跳过")')
+            else:
+                lines.append(f'        print(f"  [lwf] {sid}: idle — 等待数据")')
         else:
+            # 无 data_file 约束，总是执行
             lines.append(f'    rc = subprocess.run(["python3", "{script}"], cwd=WORK_DIR)')
             lines.append(f'    if rc.returncode != 0:')
             lines.append(f'        print(f"  ! {sid} 失败 ({{rc.returncode}})" )')
@@ -45,7 +49,10 @@ def _render_task(step):
             lines.append('    if os.path.exists(data_path) and os.path.getsize(data_path) > 0:')
             lines.append(f'        print(f"  [lwf] {sid}: {cap}/{using} — data 就绪")')
             lines.append('    else:')
-            lines.append(f'        print(f"  [lwf] {sid}: idle — 无数据")')
+            if is_optional:
+                lines.append(f'        print(f"  [lwf] {sid}: optional — 无数据，跳过")')
+            else:
+                lines.append(f'        print(f"  [lwf] {sid}: idle — 等待数据")')
         else:
             lines.append(f'    print(f"  [lwf] {sid}: {cap}/{using} — 需子项目实现")')
 
@@ -68,18 +75,6 @@ def generate_local(name, local_steps, bridge_info):
         '',
         f'BRIDGE_DIR = os.path.expanduser(f"~/.lwf/bridges/{repo_dir}/{path}")',
         '',
-        '# ── data existence check (idle detection) ──',
-        'def data_exists():',
-        '    """全局数据探测：bridge 目录下有非空文件即有数据"""',
-        '    if not os.path.exists(BRIDGE_DIR):',
-        '        return False',
-        '    for root, dirs, files in os.walk(BRIDGE_DIR):',
-        '        for f in files:',
-        '            fp = os.path.join(root, f)',
-        '            if os.path.getsize(fp) > 0:',
-        '                return True',
-        '    return False',
-        '',
         'def pull():',
         '    repo_dir = os.path.dirname(BRIDGE_DIR)',
         '    if not os.path.exists(repo_dir):',
@@ -87,10 +82,7 @@ def generate_local(name, local_steps, bridge_info):
         '    subprocess.run(["git", "-C", repo_dir, "pull"])',
         '',
         'def run():',
-        '    if not data_exists():',
-        '        print(f"  [lwf] {name}: idle — 无数据，跳过所有任务")',
-        '        return',
-        '    print(f"  [lwf] {name}: 数据就绪，开始处理")',
+        f'    print(f"  [lwf] {name}: 开始")',
         '',
     ]
 

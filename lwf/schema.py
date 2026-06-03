@@ -18,6 +18,21 @@ WORKFLOW_SCHEMA = {
                 "type": {"type": "string", "enum": ["git", "none"]},
                 "repo": {"type": "string"},
                 "path": {"type": "string"},
+                "email": {
+                    "type": "object",
+                    "properties": {
+                        "triggers": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["subject"],
+                                "properties": {
+                                    "subject": {"type": "string"},
+                                }
+                            }
+                        }
+                    }
+                },
             }
         },
         "steps": {
