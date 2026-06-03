@@ -66,6 +66,12 @@ def generate_local(name, local_steps, bridge_info):
     path = bridge_info.get('path', '')
     repo_dir = repo.replace('/', '_')
 
+    # 判断是否需要桥仓库：有步骤配置了 data_file 就需要
+    needs_bridge = any(
+        'data_file' in step.get('config', {})
+        for step in local_steps
+    )
+
     lines = [
         '#!/usr/bin/env python3',
         f'"""LWF Local Runner — {name}"""',
@@ -73,25 +79,29 @@ def generate_local(name, local_steps, bridge_info):
         '',
         'WORK_DIR = os.getcwd()',
         '',
-        f'BRIDGE_DIR = os.path.expanduser(f"~/.lwf/bridges/{repo_dir}/{path}")',
-        '',
-        'def pull():',
-        '    repo_dir = os.path.dirname(BRIDGE_DIR)',
-        '    if not os.path.exists(repo_dir):',
-        f'        subprocess.run(["git", "clone", "git@github.com:{repo}.git", repo_dir])',
-        '    subprocess.run(["git", "-C", repo_dir, "pull"])',
-        '',
-        'def run():',
-        f'    print(f"  [lwf] {name}: 开始")',
-        '',
     ]
+
+    if needs_bridge:
+        lines.append(f'BRIDGE_DIR = os.path.expanduser(f"~/.lwf/bridges/{repo_dir}/{path}")')
+        lines.append('')
+        lines.append('def pull():')
+        lines.append('    repo_dir = os.path.dirname(BRIDGE_DIR)')
+        lines.append('    if not os.path.exists(repo_dir):')
+        lines.append(f'        subprocess.run(["git", "clone", "git@github.com:{repo}.git", repo_dir])')
+        lines.append('    subprocess.run(["git", "-C", repo_dir, "pull"])')
+        lines.append('')
+
+    lines.append('def run():')
+    lines.append(f'    print(f"  [lwf] {name}: 开始")')
+    lines.append('')
 
     for s in ordered:
         lines.append(_render_task(s))
 
     lines.append('')
     lines.append("if __name__ == '__main__':")
-    lines.append('    pull()')
+    if needs_bridge:
+        lines.append('    pull()')
     lines.append('    run()')
     for s in ordered:
         lines.append(f'    task_{s["id"]}()')
