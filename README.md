@@ -21,6 +21,7 @@ git push
 ```
 
 ## 文档
+- docs/ARCHITECTURE.md — 架构总览 + 数据流
 - docs/CAPABILITIES.md — 能力 + config 参考
 - docs/CONVENTIONS.md — 数据规范
-- docs/GETTING_STARTED.md — 三步上手
+- docs/GETTING_STARTED.md — 上手指南
