@@ -15,16 +15,14 @@ lwf validate subprojects/我的项目/workflow.yaml
 lwf deploy subprojects/我的项目/workflow.yaml
 ```
 
-## 配置邮箱看门狗（可选，Local Runner 需要）
+## 配置 Rclone 桥（可选，Local Runner 需要）
 ```bash
-# 1. 配置本机 IMAP 凭证
-vim ~/.lwf/watchdog.yaml
+# 1. 配置 rclone remote（用于 GHA 同步 + 本地检测）
+rclone config
 
-# 2. 启动守护进程
-lwf watchdog start
-
-# 3. 或单次轮询测试
-lwf watchdog once
+# 2. 添加 cron 轮询
+crontab -e
+# 添加：*/5 * * * * ~/.lwf/scripts/bridge-poller.sh
 ```
 
 ## 推送到 GitHub
