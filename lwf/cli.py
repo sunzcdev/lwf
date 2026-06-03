@@ -24,7 +24,8 @@ def cmd_deploy(args):
 
     if gha_steps:
         schedule = data.get('trigger', {}).get('schedule')
-        yml = gen_gha(name, gha_steps, schedule)
+        bridge = data.get('bridge', {})
+        yml = gen_gha(name, gha_steps, schedule, bridge)
         d = out / '.github' / 'workflows'
         d.mkdir(parents=True, exist_ok=True)
         (d / f'{name}.yml').write_text(yml)
